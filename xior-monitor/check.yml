@@ -1,0 +1,45 @@
+name: Xior Groningen Monitor
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # hourly — script does internal 5-min polling for 55 min
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitor
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          TO_EMAIL:  ${{ secrets.TO_EMAIL }}
+        run: python monitor.py
+
+      - name: Commit updated state
+        run: |
+          git config user.name  "xior-bot"
+          git config user.email "[email protected]"
+          git add state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update state [skip ci]"
+            git push
+          else
+            echo "no state changes"
+          fi
